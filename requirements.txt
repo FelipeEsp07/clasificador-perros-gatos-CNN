@@ -1,0 +1,25 @@
+# PyTorch con soporte CUDA 12.1 (instalar con:
+# pip install torch==2.5.1+cu121 torchvision==0.20.1+cu121 --index-url https://download.pytorch.org/whl/cu121)
+# En una máquina sin GPU NVIDIA, instalar la versión CPU estándar (quitar +cu121 y el --index-url).
+torch==2.5.1+cu121
+torchvision==0.20.1+cu121
+
+# Interfaz web
+streamlit==1.62.0
+altair==6.2.2  # usado directamente en app/streamlit_app.py para fijar el dominio de los ejes de las curvas
+
+# Procesamiento de imágenes
+pillow==12.3.0
+
+# Métricas de evaluación (precision, recall, F1, matriz de confusión)
+scikit-learn==1.9.0
+
+# Utilidades de entrenamiento y visualización
+numpy==2.5.2
+pandas==3.0.5
+matplotlib==3.11.1
+seaborn==0.13.2
+tqdm==4.70.0
+
+# Seguimiento de experimentos
+wandb==0.28.2  # opcional: quítalo si no usarás Weights & Biases (ver README)
