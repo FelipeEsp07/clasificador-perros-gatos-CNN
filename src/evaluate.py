@@ -115,7 +115,10 @@ def evaluar_modelo_entrenado() -> dict:
 
     dispositivo = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     modelo = crear_modelo().to(dispositivo)
-    estado_guardado = torch.load(RUTA_MEJOR_MODELO, map_location=dispositivo)
+    # `weights_only=True`: solo se deserializan tensores/tipos simples (sin
+    # pickle arbitrario), evitando el `FutureWarning` de seguridad de PyTorch.
+    # El checkpoint contiene únicamente tensores y tipos nativos de Python.
+    estado_guardado = torch.load(RUTA_MEJOR_MODELO, map_location=dispositivo, weights_only=True)
     modelo.load_state_dict(estado_guardado["state_dict_modelo"])
     print(
         f"Checkpoint cargado (época {estado_guardado['epoca_global']}, "

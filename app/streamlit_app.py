@@ -16,6 +16,7 @@ import json
 import sys
 from pathlib import Path
 
+import altair as alt
 import pandas as pd
 import streamlit as st
 import torch
@@ -46,7 +47,13 @@ def cargar_modelo() -> tuple[torch.nn.Module, torch.device]:
     """
     dispositivo = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     modelo = crear_modelo().to(dispositivo)
-    estado_guardado = torch.load(RUTA_MEJOR_MODELO, map_location=dispositivo)
+    # `weights_only=True` restringe la deserialización a tensores y tipos
+    # simples (sin ejecutar pickle arbitrario), la práctica de seguridad
+    # recomendada por PyTorch. El checkpoint que genera `train.py` solo
+    # contiene tensores y tipos nativos (`state_dict_modelo`, `epoca_global`,
+    # `val_loss`, `val_accuracy`, `fase`), así que no requiere
+    # `add_safe_globals` para tipos custom.
+    estado_guardado = torch.load(RUTA_MEJOR_MODELO, map_location=dispositivo, weights_only=True)
     modelo.load_state_dict(estado_guardado["state_dict_modelo"])
     modelo.eval()
     return modelo, dispositivo
@@ -64,6 +71,68 @@ def predecir_clase(imagen: Image.Image, modelo: torch.nn.Module, dispositivo: to
     if probabilidad_perro >= 0.5:
         return NOMBRES_CLASES[1], probabilidad_perro
     return NOMBRES_CLASES[0], 1 - probabilidad_perro
+
+
+def construir_grafico_curvas_entrenamiento(
+    tabla_historial: pd.DataFrame,
+    columnas: tuple[str, str],
+    nombres_series: tuple[str, str],
+    titulo_eje_y: str,
+) -> alt.Chart:
+    """Construye un gráfico de líneas (Altair) con el dominio de los ejes fijado a mano.
+
+    `st.line_chart` delega en Vega-Lite el autoescalado del dominio de los
+    ejes según el tamaño del contenedor en el DOM. Cuando ese contenedor está
+    oculto (por ejemplo, dentro de un `st.expander` colapsado, como ocurre en
+    esta app), Vega-Lite no puede medirlo y calcula un rango inválido
+    ("Infinity, -Infinity"), lo que genera warnings en la consola del
+    navegador en cada carga de página aunque el usuario nunca haya abierto el
+    expander. Al fijar el dominio de los ejes X e Y explícitamente (a partir
+    de los propios datos), Vega-Lite ya no necesita medir el contenedor para
+    autoescalar, y el warning desaparece.
+    """
+    columna_train, columna_val = columnas
+    nombre_serie_train, nombre_serie_val = nombres_series
+
+    # Formato largo (una fila por punto y serie) porque Altair codifica el
+    # color de cada línea a partir de una columna categórica, no de columnas
+    # separadas como espera `st.line_chart`.
+    datos_formato_largo = tabla_historial.reset_index().melt(
+        id_vars="epoca",
+        value_vars=[columna_train, columna_val],
+        var_name="serie",
+        value_name="valor",
+    )
+    datos_formato_largo["serie"] = datos_formato_largo["serie"].map(
+        {columna_train: nombre_serie_train, columna_val: nombre_serie_val}
+    )
+
+    epoca_minima = int(tabla_historial.index.min())
+    epoca_maxima = int(tabla_historial.index.max())
+    valor_minimo = float(tabla_historial[[columna_train, columna_val]].min().min())
+    valor_maximo = float(tabla_historial[[columna_train, columna_val]].max().max())
+    # Margen del 5% del rango de valores para que las curvas no queden
+    # pegadas al borde superior/inferior del gráfico; si el rango es plano
+    # (valor_maximo == valor_minimo), se usa un margen fijo pequeño.
+    margen_eje_y = (valor_maximo - valor_minimo) * 0.05 or 0.05
+
+    return (
+        alt.Chart(datos_formato_largo)
+        .mark_line(point=True)
+        .encode(
+            x=alt.X(
+                "epoca:Q",
+                title="Época",
+                scale=alt.Scale(domain=[epoca_minima, epoca_maxima]),
+            ),
+            y=alt.Y(
+                "valor:Q",
+                title=titulo_eje_y,
+                scale=alt.Scale(domain=[valor_minimo - margen_eje_y, valor_maximo + margen_eje_y]),
+            ),
+            color=alt.Color("serie:N", title=""),
+        )
+    )
 
 
 def mostrar_metricas_y_curvas_entrenamiento() -> None:
@@ -110,14 +179,26 @@ def mostrar_metricas_y_curvas_entrenamiento() -> None:
     tabla_historial = pd.DataFrame(historial_entrenamiento).set_index("epoca")
 
     st.markdown("**Accuracy por época (entrenamiento vs. validación)**")
-    st.line_chart(tabla_historial[["train_accuracy", "val_accuracy"]])
+    grafico_accuracy = construir_grafico_curvas_entrenamiento(
+        tabla_historial,
+        ("train_accuracy", "val_accuracy"),
+        ("entrenamiento", "validación"),
+        "Accuracy",
+    )
+    st.altair_chart(grafico_accuracy, width="stretch")
 
     st.markdown("**Pérdida por época (entrenamiento vs. validación)**")
-    st.line_chart(tabla_historial[["train_loss", "val_loss"]])
+    grafico_perdida = construir_grafico_curvas_entrenamiento(
+        tabla_historial,
+        ("train_loss", "val_loss"),
+        ("entrenamiento", "validación"),
+        "Pérdida",
+    )
+    st.altair_chart(grafico_perdida, width="stretch")
 
     st.markdown("**Matriz de confusión**")
     if RUTA_MATRIZ_CONFUSION.exists():
-        st.image(str(RUTA_MATRIZ_CONFUSION), caption="Matriz de confusión sobre el test set", use_container_width=True)
+        st.image(str(RUTA_MATRIZ_CONFUSION), caption="Matriz de confusión sobre el test set", width="stretch")
     else:
         st.info(
             "Aún no hay matriz de confusión disponible. Corre "
@@ -165,7 +246,7 @@ def main() -> None:
         st.error("El archivo subido no es una imagen válida. Intenta con un JPG o PNG.")
         return
 
-    st.image(imagen, caption="Imagen subida", use_container_width=True)
+    st.image(imagen, caption="Imagen subida", width="stretch")
 
     modelo, dispositivo = cargar_modelo()
     clase_predicha, confianza = predecir_clase(imagen, modelo, dispositivo)

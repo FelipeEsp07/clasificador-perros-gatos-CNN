@@ -6,6 +6,7 @@ torchvision==0.20.1+cu121
 
 # Interfaz web
 streamlit==1.62.0
+altair==6.2.2  # usado directamente en app/streamlit_app.py para fijar el dominio de los ejes de las curvas
 
 # Procesamiento de imágenes
 pillow==12.3.0
