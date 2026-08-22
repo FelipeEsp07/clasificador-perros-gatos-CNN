@@ -88,3 +88,68 @@ del alcance de control de versiones):
   fusionadas (6 PRs en total, todos mergeados).
 - Sin commits vacíos salvo el inicial (obligatorio por convención del rol,
   documentado arriba) y sin mensajes genéricos tipo "wip" o "cambios varios".
+
+## Actualización 2026-08-22 — limpieza de referencias a EfficientNet-B0
+
+El usuario pidió eliminar toda mención al proyecto hermano
+`clasificador-perros-gatos` (variante EfficientNet-B0 + transfer learning),
+que nunca se subió a GitHub y no debe quedar documentado en este repo
+público, ni en su "propósito comparativo de tres puntas".
+
+### Verificación previa (checklist del rol)
+- Leí `.claude/handoffs/tester-qa.md` (único handoff funcional existente en
+  este proyecto además de este archivo). Sin defectos bloqueantes: el único
+  hallazgo de severidad ALTA es ambiental (proceso Streamlit huérfano) y ya
+  quedó resuelto en la sesión de QA; los dos hallazgos restantes son de
+  severidad BAJA y no bloquean esta limpieza de documentación.
+- No hay handoffs de `desarrollador-backend.md` ni `desarrollador-frontend.md`
+  en este proyecto, así que no aplica la verificación de contratos cruzados.
+- Revisé el diff completo (`git diff`) de los 6 archivos modificados
+  localmente antes de commitear: confirmé que **todos los cambios son
+  docstrings, comentarios y contenido de `README.md`**, sin ninguna línea de
+  lógica de negocio alterada en `src/` ni en `app/streamlit_app.py`.
+
+### Qué se hizo
+1. **Commit directo a `main`** (sin rama/PR — limpieza de documentación
+   menor, no ameritaba el patrón de PR usado para features): commit
+   `04f57ac`, mensaje `docs: eliminar referencias comparativas al proyecto
+   EfficientNet-B0`. Pusheado a `origin/main` sin conflictos
+   (`f628521..04f57ac`).
+   - Archivos: `README.md` (se quitó la sección "Propósito comparativo" y la
+     tabla de diferencias frente a EfficientNet-B0), `src/model.py`,
+     `src/train.py`, `src/dataset.py`, `src/evaluate.py`,
+     `app/streamlit_app.py` (docstrings/comentarios reescritos sin mención
+     al proyecto hermano ni a EfficientNet-B0).
+2. **Descripciones de Pull Requests editadas** (`gh pr edit <n> --body ...`),
+   sin tocar el historial de commits ya mergeado:
+   - PR #1 (`setup-proyecto`): se quitó "vs. transfer learning" del propósito
+     del experimento, reformulado como "entrenamiento de ResNet18 desde cero
+     (sin pesos preentrenados de ImageNet)". Resto de la descripción
+     (contenido del PR) se mantuvo igual.
+   - PR #3 (`modelo-y-entrenamiento`): se quitó "Es la contraparte 'entrenada
+     desde cero' del experimento comparativo... frente a una variante con
+     transfer learning", reformulado sin mencionar comparación ni proyecto
+     hermano.
+   - PR #2, #4, #5, #6: revisados, no mencionaban EfficientNet-B0 ni el
+     propósito comparativo — no requirieron edición.
+3. **Descripción del repositorio** (`gh repo edit --description`): se quitó
+   "Proyecto comparativo educativo" → queda "Proyecto educativo con PyTorch y
+   Streamlit".
+4. **Nombres de rama**: revisados (`app-streamlit`, `docs/handoffs-proceso`,
+   `main`, `modelo-entrenado`, `modelo-y-entrenamiento`, `pipeline-datos`,
+   `setup-proyecto`) — ninguno menciona "efficientnet" ni "b0", no requirió
+   cambios.
+5. **No se tocó el historial de commits** ya mergeado (mensajes de los 6 PRs
+   originales quedan intactos como registro histórico), conforme a la
+   instrucción explícita del usuario de no reescribir historial.
+
+### Verificación final
+- `grep -ri "efficientnet|tres puntas|comparativ"` sobre el árbol local del
+  repo: sin coincidencias.
+- Búsqueda del mismo patrón sobre los `body` de los 6 PRs vía `gh pr list
+  --json body`: sin coincidencias.
+- Descripción del repo verificada vía `gh repo view --json description`: sin
+  mención a EfficientNet-B0 ni comparación.
+
+URL final del repositorio:
+https://github.com/FelipeEsp07/clasificador-perros-gatos-CNN
