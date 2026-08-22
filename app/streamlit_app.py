@@ -63,6 +63,21 @@ def main() -> None:
     st.title("Clasificador de perros y gatos — CNN")
     st.write("Sube una imagen de un perro o un gato y el modelo predice la clase.")
 
+    with st.expander("Sobre el modelo"):
+        st.markdown(
+            "Este clasificador usa una **red neuronal convolucional (CNN)**: "
+            "un tipo de modelo pensado para trabajar con imágenes, que "
+            "aprende a reconocer patrones visuales (bordes, texturas, formas) "
+            "aplicando pequeños filtros sobre la imagen en vez de mirar cada "
+            "píxel por separado.\n\n"
+            "En concreto, usa la arquitectura **ResNet18**, conocida por sus "
+            "*conexiones residuales* (atajos que ayudan a la red a entrenarse "
+            "mejor incluso siendo profunda). En este proyecto la red se "
+            "entrenó **completamente desde cero**, sin usar pesos "
+            "preentrenados: aprendió a distinguir perros de gatos únicamente "
+            "a partir de las imágenes de este dataset."
+        )
+
     if not RUTA_MEJOR_MODELO.exists():
         st.error(
             f"No se encontró el modelo entrenado en '{RUTA_MEJOR_MODELO}'. "

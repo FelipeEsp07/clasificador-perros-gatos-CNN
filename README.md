@@ -6,6 +6,115 @@ pesos preentrenados de ImageNet, sin transfer learning), usando PyTorch.
 Incluye entrenamiento con early stopping, evaluación con métricas completas
 y una interfaz web en Streamlit para probar el modelo con imágenes propias.
 
+## ¿Qué es una CNN (Red Neuronal Convolucional)?
+
+Una **red neuronal convolucional (CNN)** es una arquitectura de red neuronal
+diseñada específicamente para procesar datos con estructura de rejilla, como
+imágenes (una matriz de píxeles). A diferencia de una red totalmente
+conectada (donde cada neurona de una capa se conecta con absolutamente todas
+las neuronas de la capa anterior), una CNN está construida sobre dos ideas
+que la hacen mucho más eficiente y efectiva para visión por computador:
+
+- **Localidad**: en una imagen, la información relevante suele estar
+  concentrada en regiones pequeñas y vecinas (un borde, una textura, un ojo).
+  En vez de conectar cada neurona con toda la imagen, una **capa
+  convolucional** aplica pequeños filtros (llamados **kernels**, típicamente
+  de 3×3 o 5×5 píxeles) que solo "miran" una región local de la imagen a la
+  vez, y van deslizándose (convolucionando) sobre toda la imagen para
+  producir un **mapa de características** (*feature map*). Cada kernel
+  aprende a detectar un patrón visual concreto: bordes horizontales,
+  cambios de color, texturas, etc.
+- **Weight sharing (pesos compartidos)**: el mismo kernel se reutiliza en
+  todas las posiciones de la imagen, en vez de aprender pesos distintos para
+  cada píxel. Esto reduce drásticamente la cantidad de parámetros a
+  entrenar (comparado con una red totalmente conectada del mismo tamaño de
+  entrada) y le da a la red una propiedad clave: si aprende a detectar una
+  oreja de gato en la esquina superior izquierda de una imagen, reconoce esa
+  misma oreja aunque aparezca en cualquier otra posición (**invarianza a la
+  traslación**).
+
+Además de las capas convolucionales, las CNN suelen incluir capas de
+**pooling** (por ejemplo *max pooling*), que reducen el tamaño espacial de
+los mapas de características quedándose con el valor más representativo
+(el máximo) de cada región pequeña. Esto cumple dos propósitos: reduce el
+costo computacional de las capas siguientes y aporta un poco más de
+robustez ante pequeñas traslaciones o deformaciones de la imagen.
+
+Al apilar muchas capas convolucionales, la red construye una **jerarquía de
+representaciones**: las primeras capas detectan patrones simples (bordes,
+esquinas, manchas de color), las capas intermedias combinan esos patrones en
+formas más complejas (texturas de pelaje, contornos de orejas u ojos), y las
+capas finales combinan todo eso en conceptos de alto nivel (la forma general
+de un perro o un gato). Por esta combinación de eficiencia (menos
+parámetros gracias al weight sharing), sensibilidad a la estructura espacial
+de la imagen (gracias a la localidad) y capacidad de aprender jerarquías de
+patrones, las CNN son desde hace más de una década la arquitectura estándar
+para tareas de visión por computador como la clasificación de imágenes que
+resuelve este proyecto.
+
+## Arquitectura ResNet en detalle
+
+**ResNet** (*Residual Network*, presentada por He et al. en 2015) es una
+familia de arquitecturas de CNN que resolvió un problema muy concreto:
+antes de ResNet, apilar más y más capas convolucionales para hacer redes
+más "profundas" dejaba de ayudar a partir de cierto punto — y no por
+sobreajuste, sino por un problema de optimización conocido como
+**degradación del gradiente** (*degradation problem*). En redes muy
+profundas, el error de entrenamiento (no solo el de validación) empezaba a
+empeorar al agregar más capas, porque el gradiente que se propaga hacia
+atrás durante el entrenamiento (backpropagation) se iba atenuando o
+distorsionando capa a capa, y a la red le costaba cada vez más aprender
+incluso la función identidad (es decir, "no transformar nada") cuando eso
+era lo óptimo para una capa en particular.
+
+La solución de ResNet son las **conexiones residuales** (*skip
+connections* o *shortcut connections*): en vez de que cada bloque de capas
+aprenda directamente la transformación deseada `H(x)`, se le pide que
+aprenda solo el **residuo** `F(x) = H(x) - x`, y la salida real del bloque
+se calcula sumando la entrada original sin modificar:
+
+```
+salida = F(x) + x
+```
+
+Esta suma se implementa literalmente como una conexión que "salta" el
+bloque de capas convolucionales y se suma a su salida. La ventaja es doble:
+
+1. **Le facilita a la red aprender la identidad cuando conviene.** Si la
+   transformación óptima para un bloque es no hacer nada, basta con que
+   `F(x)` converja a cero — mucho más fácil de aprender para un conjunto de
+   capas que aprender la identidad exacta desde una inicialización aleatoria.
+2. **Mejora el flujo del gradiente durante el entrenamiento.** La conexión
+   residual le da al gradiente un "camino corto" para propagarse hacia atrás
+   sin atenuarse a través de todas las capas intermedias, lo que en la
+   práctica permite entrenar redes de decenas o incluso cientos de capas sin
+   que el rendimiento se degrade al hacerlas más profundas.
+
+**ResNet18** es la variante más pequeña de esta familia con 18 capas con
+peso (de ahí el nombre): una capa convolucional inicial de 7×7, seguida de
+4 grupos de **bloques residuales básicos** (*BasicBlock*, cada uno con dos
+capas convolucionales de 3×3 y su propia conexión residual sumando la
+entrada del bloque a su salida), y finalmente una capa totalmente conectada
+de clasificación. Es una arquitectura relativamente ligera dentro de la
+familia ResNet (frente a variantes más profundas como ResNet50 o
+ResNet101), lo que la hace razonable para entrenar desde cero con un
+dataset de tamaño moderado como el de este proyecto.
+
+En este proyecto se usa exactamente esa arquitectura, instanciada con
+`torchvision.models.resnet18(weights=None)` (ver `src/model.py`): el `None`
+en `weights` es lo que indica que **no** se cargan los pesos preentrenados
+en ImageNet, sino que todos los parámetros parten de una inicialización
+aleatoria, tal como se explica en la siguiente sección. La única
+modificación sobre la ResNet18 estándar es reemplazar su cabeza de
+clasificación original (pensada para 1000 clases de ImageNet) por una
+cabeza binaria (`Dropout` + una capa lineal a un solo logit), adecuada para
+distinguir entre solo dos clases: perro y gato.
+
+Para dejarlo explícito: **este es un modelo convolucional (CNN) que usa la
+arquitectura ResNet** — todo lo descrito en la sección anterior sobre
+capas convolucionales, kernels y pooling aplica aquí, con la adición de las
+conexiones residuales que caracterizan específicamente a ResNet.
+
 ## Por qué entrenar desde cero
 
 Se eligió entrenar ResNet18 completamente desde cero (`weights=None`, sin
