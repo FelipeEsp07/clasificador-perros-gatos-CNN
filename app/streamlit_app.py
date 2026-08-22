@@ -33,6 +33,7 @@ RUTA_MEJOR_MODELO = DIRECTORIO_PROYECTO / "models" / "best_model.pth"
 # real: así nadie necesita credenciales de W&B solo para ver la app.
 RUTA_METRICAS_TEST = DIRECTORIO_PROYECTO / "models" / "metricas_test.json"
 RUTA_HISTORIAL_ENTRENAMIENTO = DIRECTORIO_PROYECTO / "models" / "historial_entrenamiento.json"
+RUTA_MATRIZ_CONFUSION = DIRECTORIO_PROYECTO / "models" / "matriz_confusion.png"
 
 
 @st.cache_resource
@@ -113,6 +114,15 @@ def mostrar_metricas_y_curvas_entrenamiento() -> None:
 
     st.markdown("**Pérdida por época (entrenamiento vs. validación)**")
     st.line_chart(tabla_historial[["train_loss", "val_loss"]])
+
+    st.markdown("**Matriz de confusión**")
+    if RUTA_MATRIZ_CONFUSION.exists():
+        st.image(str(RUTA_MATRIZ_CONFUSION), caption="Matriz de confusión sobre el test set", use_container_width=True)
+    else:
+        st.info(
+            "Aún no hay matriz de confusión disponible. Corre "
+            "`python src/evaluate.py` para generarla."
+        )
 
 
 def main() -> None:
