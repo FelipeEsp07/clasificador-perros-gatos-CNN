@@ -12,18 +12,17 @@ Este módulo se encarga de:
   estratificado 85/15 dentro de `training_set`, dejando `test_set` intacto
   para la evaluación final.
 
-A diferencia de `clasificador-perros-gatos` (EfficientNet-B0 con transfer
-learning) y de la primera versión de este proyecto, aquí ResNet18 se entrena
-**desde cero, sin pesos preentrenados de ImageNet**. Por eso este archivo NO
-normaliza las imágenes con las estadísticas de ImageNet (`mean`/`std` de ese
-dataset): esa normalización solo tiene sentido cuando se reutilizan pesos
-entrenados con ese preprocesamiento exacto. Al entrenar desde cero, la
-práctica recomendada es un escalado simple a `[0, 1]`, que es exactamente lo
-que hace `transforms.ToTensor()` por sí solo (divide cada píxel entre 255),
-sin `transforms.Normalize` adicional. El aumento de datos (flip, rotación,
-jitter de color) se mantiene igual —de hecho es más importante todavía aquí,
-porque sin el "prior" aprendido de ImageNet el modelo es más propenso a
-sobreajustar un dataset de ~10,000 imágenes.
+Aquí ResNet18 se entrena **desde cero, sin pesos preentrenados de
+ImageNet**. Por eso este archivo NO normaliza las imágenes con las
+estadísticas de ImageNet (`mean`/`std` de ese dataset): esa normalización
+solo tiene sentido cuando se reutilizan pesos entrenados con ese
+preprocesamiento exacto. Al entrenar desde cero, la práctica recomendada es
+un escalado simple a `[0, 1]`, que es exactamente lo que hace
+`transforms.ToTensor()` por sí solo (divide cada píxel entre 255), sin
+`transforms.Normalize` adicional. El aumento de datos (flip, rotación,
+jitter de color) es especialmente importante aquí, porque sin ningún
+conocimiento previo aprendido el modelo es más propenso a sobreajustar un
+dataset de ~10,000 imágenes.
 """
 
 from __future__ import annotations
@@ -37,10 +36,9 @@ from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 
-# Tamaño de entrada estándar para arquitecturas tipo ResNet/EfficientNet
-# entrenadas sobre imágenes de ~224x224. Se mantiene igual al resto de
-# proyectos de esta comparación (no es un valor ligado a pesos preentrenados,
-# sino simplemente el tamaño de entrada de la red).
+# Tamaño de entrada estándar para arquitecturas tipo ResNet entrenadas sobre
+# imágenes de ~224x224 (no es un valor ligado a pesos preentrenados, sino
+# simplemente el tamaño de entrada de la red).
 TAMANO_REDIMENSION = 256
 TAMANO_RECORTE = 224
 

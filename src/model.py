@@ -3,12 +3,9 @@ Definición del modelo: arquitectura ResNet18 (sin pesos preentrenados) con
 una cabeza de clasificación binaria (perro vs. gato) para entrenamiento
 completo "desde cero".
 
-A diferencia de la primera versión de este proyecto (y de
-`clasificador-perros-gatos`, que usa EfficientNet-B0 con transfer learning),
-aquí el objetivo es intencionalmente distinto: comparar qué tan bien rinde
-la MISMA arquitectura de red (ResNet18) cuando se entrena desde cero, sin
-aprovechar pesos preentrenados en ImageNet, contra el resultado de
-transfer learning de `clasificador-perros-gatos`. Por eso:
+El objetivo es entrenar ResNet18 desde cero, sin aprovechar pesos
+preentrenados en ImageNet, para estudiar cómo se comporta la red cuando debe
+aprender todas sus representaciones directamente de este dataset. Por eso:
 
 1. Se crea `resnet18(weights=None)`: los pesos se inicializan al azar
    (inicialización estándar de PyTorch para capas convolucionales/lineales),
@@ -47,8 +44,8 @@ def crear_modelo(probabilidad_dropout: float = 0.3) -> nn.Module:
     """
     modelo = resnet18(weights=None)
 
-    # En ResNet18 la capa final se llama `fc` (no `classifier` como en
-    # EfficientNet) y tiene 512 características de entrada.
+    # En ResNet18 la capa final se llama `fc` y tiene 512 características
+    # de entrada.
     numero_caracteristicas_entrada = modelo.fc.in_features
     modelo.fc = nn.Sequential(
         nn.Dropout(p=probabilidad_dropout, inplace=True),

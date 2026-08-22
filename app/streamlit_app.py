@@ -5,9 +5,9 @@ modelo predice "perro" o "gato" junto con el porcentaje de confianza.
 Sin historial de sesión ni funcionalidades extra: alcance mínimo viable.
 Ejecutar con: streamlit run app/streamlit_app.py
 
-Este archivo es idéntico al de `clasificador-perros-gatos`: importa
-`crear_modelo` del `model.py` local (ResNet18 en este proyecto), así que la
-interfaz de usuario no necesita saber nada sobre la arquitectura subyacente.
+Importa `crear_modelo` del `model.py` local (ResNet18 en este proyecto), así
+que la interfaz de usuario no necesita saber nada sobre la arquitectura
+subyacente.
 """
 
 from __future__ import annotations

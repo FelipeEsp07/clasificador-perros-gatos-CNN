@@ -2,27 +2,20 @@
 Entrenamiento del clasificador perro/gato con ResNet18 **desde cero**, sin
 pesos preentrenados de ImageNet (sin transfer learning).
 
-Este proyecto es un experimento comparativo explícito: `clasificador-perros-
-gatos` usa EfficientNet-B0 con transfer learning (97.33% accuracy en test);
-esta variante entrena la arquitectura ResNet18 completa desde inicialización
-aleatoria, para medir cuánto aporta realmente el transfer learning frente a
-aprender todo desde los ~8,700 ejemplos de entrenamiento disponibles.
-
-Al no haber backbone preentrenado que proteger, el esquema de dos fases
-(cabeza congelada → fine-tuning) de la versión anterior de este proyecto
-(y de `clasificador-perros-gatos`) no aplica: aquí todas las capas se
-entrenan juntas desde la época 1, con un único optimizador. Se compensa con:
-- Un learning rate inicial más alto (1e-3 en vez de 1e-5 de fine-tuning),
-  típico de entrenar una red convolucional desde cero.
-- Muchas más épocas máximas (hasta 30, contra 22 de la variante con
-  transfer learning), porque converger desde pesos aleatorios es
-  sustancialmente más lento que ajustar un modelo ya preentrenado.
+Al no haber backbone preentrenado que proteger, no hay esquema de dos fases
+(cabeza congelada → fine-tuning): todas las capas se entrenan juntas desde
+la época 1, con un único optimizador. Se compensa con:
+- Un learning rate inicial relativamente alto (1e-3), típico de entrenar
+  una red convolucional desde cero.
+- Muchas más épocas máximas (hasta 30), porque converger desde pesos
+  aleatorios es sustancialmente más lento que ajustar un modelo ya
+  preentrenado.
 - Early stopping con paciencia algo mayor (6 épocas) para no cortar el
   entrenamiento prematuramente durante ese proceso de convergencia más lento.
 
 El resto del pipeline (dataset, augmentation, criterio de pérdida,
 optimizador AdamW, scheduler, checkpointing del mejor modelo por `val_loss`,
-semillas) se mantiene igual al resto de proyectos de esta comparación.
+semillas) sigue el patrón estándar para este tipo de entrenamiento.
 """
 
 from __future__ import annotations
@@ -51,18 +44,16 @@ DIRECTORIO_PROYECTO = Path(__file__).resolve().parent.parent
 DIRECTORIO_DATOS = DIRECTORIO_PROYECTO / "data"
 RUTA_MEJOR_MODELO = DIRECTORIO_PROYECTO / "models" / "best_model.pth"
 
-# Se registra el proyecto de W&B `clasificador-perros-gatos` (el mismo que
-# usan las variantes con EfficientNet-B0 y ResNet18+transfer learning), a
-# propósito: así los tres runs quedan en el mismo proyecto y se pueden
-# comparar directamente desde el dashboard, filtrando por los campos
-# `backbone` y `pretrained` del config.
+# Nombre del proyecto de W&B donde se registran las corridas de
+# entrenamiento; los campos `backbone` y `pretrained` del config permiten
+# filtrar/agrupar los runs desde el dashboard.
 NOMBRE_PROYECTO_WANDB = "clasificador-perros-gatos"
 
 CONFIGURACION = {
     "arquitectura": "resnet18",
     "backbone": "resnet18",
-    # Campo explícito para diferenciar este run (entrenamiento desde cero)
-    # del run de ResNet18 con transfer learning y del de EfficientNet-B0.
+    # Campo explícito para identificar en W&B que este run entrena desde
+    # cero (pesos aleatorios), sin transfer learning.
     "pretrained": False,
     "entrena_desde_cero": True,
     "tamano_lote": 32,
@@ -191,10 +182,10 @@ def registrar_metricas_en_wandb(ejecucion, metricas: dict) -> None:
 def entrenar_modelo_completo() -> None:
     """Entrena ResNet18 desde cero en un único loop y registra todo en W&B.
 
-    A diferencia de la variante con transfer learning, aquí no hay fases:
-    todos los parámetros del modelo se optimizan juntos desde la época 1,
-    con early stopping monitoreando `val_loss` sobre todo el entrenamiento
-    (no por fase) y guardando siempre el mejor checkpoint visto.
+    Al no haber pesos preentrenados que proteger, no hay fases: todos los
+    parámetros del modelo se optimizan juntos desde la época 1, con early
+    stopping monitoreando `val_loss` durante todo el entrenamiento y
+    guardando siempre el mejor checkpoint visto.
     """
     fijar_semillas(CONFIGURACION["semilla"])
     dispositivo = torch.device("cuda" if torch.cuda.is_available() else "cpu")

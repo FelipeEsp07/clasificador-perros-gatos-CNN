@@ -7,9 +7,8 @@ Reporta accuracy, precision, recall, F1 y la matriz de confusión completa
 (no solo accuracy), porque en un problema binario balanceado la accuracy sola
 puede esconder un desbalance entre falsos positivos y falsos negativos.
 
-Este archivo es idéntico al `evaluate.py` de `clasificador-perros-gatos`: la
-lógica de evaluación no depende de la arquitectura del backbone, solo de la
-interfaz común que expone `model.py` (`crear_modelo` devolviendo un logit).
+La lógica de evaluación no depende de la arquitectura del backbone, solo de
+la interfaz que expone `model.py` (`crear_modelo` devolviendo un logit).
 """
 
 from __future__ import annotations
