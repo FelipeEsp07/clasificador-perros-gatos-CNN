@@ -12,9 +12,11 @@ subyacente.
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
+import pandas as pd
 import streamlit as st
 import torch
 from PIL import Image, UnidentifiedImageError
@@ -26,6 +28,11 @@ from dataset import NOMBRES_CLASES, crear_transformacion_evaluacion  # noqa: E40
 from model import crear_modelo  # noqa: E402
 
 RUTA_MEJOR_MODELO = DIRECTORIO_PROYECTO / "models" / "best_model.pth"
+# Ambos archivos se generan localmente (`evaluate.py` y `train.py`) para que
+# la app pueda mostrar métricas y curvas sin llamar al API de W&B en tiempo
+# real: así nadie necesita credenciales de W&B solo para ver la app.
+RUTA_METRICAS_TEST = DIRECTORIO_PROYECTO / "models" / "metricas_test.json"
+RUTA_HISTORIAL_ENTRENAMIENTO = DIRECTORIO_PROYECTO / "models" / "historial_entrenamiento.json"
 
 
 @st.cache_resource
@@ -58,6 +65,56 @@ def predecir_clase(imagen: Image.Image, modelo: torch.nn.Module, dispositivo: to
     return NOMBRES_CLASES[0], 1 - probabilidad_perro
 
 
+def mostrar_metricas_y_curvas_entrenamiento() -> None:
+    """Muestra las métricas finales de test y las curvas de entrenamiento.
+
+    Lee dos archivos JSON "horneados" localmente (`metricas_test.json` por
+    `evaluate.py` e `historial_entrenamiento.json` por `train.py`) en vez de
+    consultar el API de W&B en tiempo real, para que la app funcione sin
+    credenciales ni conexión a internet. Si algún archivo no existe todavía
+    (por ejemplo, alguien clonó el repo sin haber corrido esos scripts), se
+    informa con un mensaje simple en vez de que la app falle.
+    """
+    if not RUTA_METRICAS_TEST.exists() or not RUTA_HISTORIAL_ENTRENAMIENTO.exists():
+        st.info(
+            "Aún no hay datos de entrenamiento disponibles. Corre "
+            "`python src/train.py` y luego `python src/evaluate.py` para generarlos."
+        )
+        return
+
+    try:
+        with open(RUTA_METRICAS_TEST, encoding="utf-8") as archivo:
+            metricas_test = json.load(archivo)
+        with open(RUTA_HISTORIAL_ENTRENAMIENTO, encoding="utf-8") as archivo:
+            historial_entrenamiento = json.load(archivo)
+    except (json.JSONDecodeError, OSError) as error:
+        st.warning(f"No se pudieron leer los datos de entrenamiento guardados: {error}")
+        return
+
+    claves_metricas_esperadas = {"accuracy", "precision", "recall", "f1"}
+    if not claves_metricas_esperadas.issubset(metricas_test) or not historial_entrenamiento:
+        st.warning(
+            "Los archivos de métricas/historial existen pero no tienen el "
+            "formato esperado. Vuelve a correr `evaluate.py`/`train.py`."
+        )
+        return
+
+    st.markdown("**Métricas finales sobre el test set**")
+    columna_accuracy, columna_precision, columna_recall, columna_f1 = st.columns(4)
+    columna_accuracy.metric("Accuracy", f"{metricas_test['accuracy'] * 100:.1f}%")
+    columna_precision.metric("Precision", f"{metricas_test['precision'] * 100:.1f}%")
+    columna_recall.metric("Recall", f"{metricas_test['recall'] * 100:.1f}%")
+    columna_f1.metric("F1", f"{metricas_test['f1'] * 100:.1f}%")
+
+    tabla_historial = pd.DataFrame(historial_entrenamiento).set_index("epoca")
+
+    st.markdown("**Accuracy por época (entrenamiento vs. validación)**")
+    st.line_chart(tabla_historial[["train_accuracy", "val_accuracy"]])
+
+    st.markdown("**Pérdida por época (entrenamiento vs. validación)**")
+    st.line_chart(tabla_historial[["train_loss", "val_loss"]])
+
+
 def main() -> None:
     st.set_page_config(page_title="Clasificador perro vs. gato CNN", page_icon="🐾")
     st.title("Clasificador de perros y gatos — CNN")
@@ -77,6 +134,9 @@ def main() -> None:
             "preentrenados: aprendió a distinguir perros de gatos únicamente "
             "a partir de las imágenes de este dataset."
         )
+
+    with st.expander("Métricas y curvas de entrenamiento"):
+        mostrar_metricas_y_curvas_entrenamiento()
 
     if not RUTA_MEJOR_MODELO.exists():
         st.error(

@@ -13,6 +13,7 @@ la interfaz que expone `model.py` (`crear_modelo` devolviendo un logit).
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -35,6 +36,9 @@ DIRECTORIO_PROYECTO = Path(__file__).resolve().parent.parent
 DIRECTORIO_DATOS = DIRECTORIO_PROYECTO / "data"
 RUTA_MEJOR_MODELO = DIRECTORIO_PROYECTO / "models" / "best_model.pth"
 RUTA_MATRIZ_CONFUSION = DIRECTORIO_PROYECTO / "models" / "matriz_confusion.png"
+# La app de Streamlit lee este archivo local para mostrar las métricas sin
+# depender del API de W&B (ver `guardar_metricas_test`).
+RUTA_METRICAS_TEST = DIRECTORIO_PROYECTO / "models" / "metricas_test.json"
 
 
 @torch.no_grad()
@@ -89,6 +93,19 @@ def graficar_matriz_confusion(etiquetas_reales: list[int], etiquetas_predichas: 
     plt.close(figura)
 
 
+def guardar_metricas_test(metricas: dict) -> None:
+    """Persiste las métricas de test en un JSON local para que la app de
+    Streamlit las lea sin necesidad de credenciales ni conexión a W&B.
+
+    Se guardan como `float` nativo de Python (no `numpy.float64`, que no es
+    serializable por `json.dump`) porque scikit-learn devuelve escalares de
+    NumPy en sus funciones de métricas.
+    """
+    RUTA_METRICAS_TEST.parent.mkdir(parents=True, exist_ok=True)
+    with open(RUTA_METRICAS_TEST, "w", encoding="utf-8") as archivo:
+        json.dump({clave: float(valor) for clave, valor in metricas.items()}, archivo, indent=2)
+
+
 def evaluar_modelo_entrenado() -> dict:
     """Carga el mejor checkpoint y calcula las métricas finales sobre el test set."""
     if not RUTA_MEJOR_MODELO.exists():
@@ -110,6 +127,7 @@ def evaluar_modelo_entrenado() -> dict:
     etiquetas_reales, etiquetas_predichas = predecir_sobre_test(modelo, cargador_test, dispositivo)
     metricas = calcular_metricas(etiquetas_reales, etiquetas_predichas)
     graficar_matriz_confusion(etiquetas_reales, etiquetas_predichas)
+    guardar_metricas_test(metricas)
 
     return metricas
 
@@ -123,6 +141,7 @@ if __name__ == "__main__":
     print(f"  recall:    {metricas['recall']:.4f}")
     print(f"  f1:        {metricas['f1']:.4f}")
     print(f"\nMatriz de confusión guardada en: {RUTA_MATRIZ_CONFUSION}")
+    print(f"Métricas de test guardadas en: {RUTA_METRICAS_TEST}")
 
     # No hay una assert de valor exacto esperado aquí porque el desempeño de
     # un modelo entrenado depende de la inicialización aleatoria y del

@@ -20,6 +20,7 @@ semillas) sigue el patrón estándar para este tipo de entrenamiento.
 
 from __future__ import annotations
 
+import json
 import random
 from pathlib import Path
 
@@ -43,6 +44,9 @@ SEMILLA = 42
 DIRECTORIO_PROYECTO = Path(__file__).resolve().parent.parent
 DIRECTORIO_DATOS = DIRECTORIO_PROYECTO / "data"
 RUTA_MEJOR_MODELO = DIRECTORIO_PROYECTO / "models" / "best_model.pth"
+# La app de Streamlit lee este archivo local para graficar las curvas de
+# entrenamiento sin depender del API de W&B (ver `guardar_historial_entrenamiento`).
+RUTA_HISTORIAL_ENTRENAMIENTO = DIRECTORIO_PROYECTO / "models" / "historial_entrenamiento.json"
 
 # Nombre del proyecto de W&B donde se registran las corridas de
 # entrenamiento; los campos `backbone` y `pretrained` del config permiten
@@ -179,6 +183,19 @@ def registrar_metricas_en_wandb(ejecucion, metricas: dict) -> None:
         print(f"[wandb] no se pudo registrar la época (se continúa el entrenamiento): {error}")
 
 
+def guardar_historial_entrenamiento(historial_epocas: list[dict]) -> None:
+    """Persiste el historial de épocas (loss/accuracy train y val) en un JSON
+    local para que la app de Streamlit grafique las curvas de entrenamiento
+    sin necesidad de credenciales ni conexión a W&B.
+
+    Se regenera cada vez que se corre `train.py`, así que si se reentrena el
+    modelo el archivo queda automáticamente sincronizado con el nuevo run.
+    """
+    RUTA_HISTORIAL_ENTRENAMIENTO.parent.mkdir(parents=True, exist_ok=True)
+    with open(RUTA_HISTORIAL_ENTRENAMIENTO, "w", encoding="utf-8") as archivo:
+        json.dump(historial_epocas, archivo, indent=2)
+
+
 def entrenar_modelo_completo() -> None:
     """Entrena ResNet18 desde cero en un único loop y registra todo en W&B.
 
@@ -225,6 +242,7 @@ def entrenar_modelo_completo() -> None:
 
         mejor_val_loss = float("inf")
         epocas_sin_mejora = 0
+        historial_epocas: list[dict] = []
 
         for epoca in range(1, CONFIGURACION["epocas_maximas"] + 1):
             perdida_train, exactitud_train = entrenar_una_epoca(
@@ -248,6 +266,15 @@ def entrenar_modelo_completo() -> None:
                     "val_accuracy": exactitud_val,
                     "tasa_aprendizaje_actual": optimizador.param_groups[0]["lr"],
                 },
+            )
+            historial_epocas.append(
+                {
+                    "epoca": epoca,
+                    "train_accuracy": exactitud_train,
+                    "val_accuracy": exactitud_val,
+                    "train_loss": perdida_train,
+                    "val_loss": perdida_val,
+                }
             )
 
             if perdida_val < mejor_val_loss:
@@ -279,8 +306,11 @@ def entrenar_modelo_completo() -> None:
         except Exception as error:  # noqa: BLE001 - ver registrar_metricas_en_wandb
             print(f"[wandb] no se pudo actualizar el resumen final: {error}")
 
+        guardar_historial_entrenamiento(historial_epocas)
+
         print(f"Entrenamiento terminado. Mejor val_loss: {mejor_val_loss:.4f}")
         print(f"Checkpoint guardado en: {RUTA_MEJOR_MODELO}")
+        print(f"Historial de entrenamiento guardado en: {RUTA_HISTORIAL_ENTRENAMIENTO}")
     finally:
         try:
             ejecucion.finish()
